@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  go-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "${PORT:-8081}:8081"
+    env_file:
+      - ${ENV_FILE:-.env.dev}
+    volumes:
+      - ./${ENV_FILE:-.env.dev}:/app/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/boms"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  python-api:
+    build:
+      context: ./python_predictor
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "${PYTHON_PORT:-5001}:5001"
+    volumes:
+      - ./python_predictor:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postgres:
+    image: postgres:15
+    restart: always
+    env_file:
+      - ${ENV_FILE:-.env.dev}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-yolo_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 25s
+
+volumes:
+  postgres_data:

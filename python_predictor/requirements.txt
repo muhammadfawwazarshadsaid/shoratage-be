@@ -1,0 +1,7 @@
+ultralytics
+torch
+torchvision
+Pillow
+Flask
+Flask-Cors
+opencv-python-headless
