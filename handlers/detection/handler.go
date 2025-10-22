@@ -209,32 +209,24 @@ func compareBOMAndDetections(bomItems map[string]int, detected []models.Detectio
         SurplusItems:  surplus,
     }
 }
+
 func GetDetectionResult(c *gin.Context, db *sql.DB) {
-    bomCode := c.Param("bomCode")
-    var resultJSON string
-    var isFinalized bool 
+	bomCode := c.Param("bomCode")
+	var resultJSON string
 
-    query := "SELECT comparison_result_json, is_finalized FROM detection_results WHERE bom_code=$1"
-    err := db.QueryRow(query, bomCode).Scan(&resultJSON, &isFinalized)
+	err := db.QueryRow("SELECT comparison_result_json FROM detection_results WHERE bom_code=$1", bomCode).Scan(&resultJSON)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No detection result found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch detection result"})
+		return
+	}
 
-    if err == sql.ErrNoRows {
-        c.JSON(http.StatusNotFound, gin.H{"error": "No detection result found"})
-        return
-    }
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch detection result: " + err.Error()})
-        return
-    }
-
-    var result models.ComparisonResult
-    if err := json.Unmarshal([]byte(resultJSON), &result); err != nil {
-         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse comparison result JSON: " + err.Error()})
-        return
-    }
-
-    result.IsFinalized = isFinalized
-
-    c.JSON(http.StatusOK, result)
+	var result map[string]interface{}
+	json.Unmarshal([]byte(resultJSON), &result)
+	c.JSON(http.StatusOK, result)
 }
 
 func ResetDetectionResult(c *gin.Context, db *sql.DB) {

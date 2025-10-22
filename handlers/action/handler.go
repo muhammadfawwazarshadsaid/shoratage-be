@@ -2,7 +2,6 @@ package action
 
 import (
 	"database/sql"
-	"fmt" 
 	"net/http"
 
 	"yolo-server/models"
@@ -13,18 +12,7 @@ import (
 func FinalizeActionItems(c *gin.Context, db *sql.DB) {
 	var req models.FinalizeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
-		return
-	}
-
-	if len(req.Items) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No items provided to finalize"})
-		return
-	}
-
-	bomCode := req.Items[0].BomCode
-	if bomCode == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "BomCode cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
@@ -33,42 +21,30 @@ func FinalizeActionItems(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
 		return
 	}
-	defer tx.Rollback()
 
-	stmtInsert, err := tx.Prepare("INSERT INTO actionable_items (bom_code, part_name, item_type, quantity_diff) VALUES ($1, $2, $3, $4)")
+	stmt, err := tx.Prepare("INSERT INTO actionable_items (bom_code, part_name, item_type, quantity_diff) VALUES ($1, $2, $3, $4)")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare insert statement"})
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare statement"})
 		return
 	}
-	defer stmtInsert.Close() 
+	defer stmt.Close()
+
 	for _, item := range req.Items {
-		if item.BomCode != bomCode {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "All items must belong to the same BomCode"})
-			return 
-		}
-		_, err := stmtInsert.Exec(item.BomCode, item.PartName, item.ItemType, item.QuantityDiff)
+		_, err := stmt.Exec(item.BomCode, item.PartName, item.ItemType, item.QuantityDiff)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert item: " + err.Error()})
-			return 
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert item"})
+			return
 		}
 	}
 
-	updateQuery := "UPDATE detection_results SET is_finalized = TRUE WHERE bom_code = $1"
-	result, err := tx.Exec(updateQuery, bomCode)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update detection result status: " + err.Error()})
-		return 
-	}
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		fmt.Printf("Warning: No detection_results found for bom_code %s to mark as finalized.\n", bomCode)
-	}
 	if err := tx.Commit(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Actionable items saved and detection marked as finalized successfully"})
+	c.JSON(http.StatusCreated, gin.H{"message": "Actionable items saved successfully"})
 }
 
 func GetActionItems(c *gin.Context, db *sql.DB) {
