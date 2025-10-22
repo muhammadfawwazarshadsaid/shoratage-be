@@ -47,6 +47,7 @@ type ComparisonResult struct {
 	SurplusItems   []SurplusItem  `json:"surplusItems"`
 	OriginalImage  string         `json:"originalImage"`
 	AnnotatedImage string         `json:"annotatedImage"`
+	IsFinalized    bool           `json:"isFinalized"`
 }
 
 type ActionableItem struct {

@@ -70,6 +70,9 @@ CREATE TABLE detection_results (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE detection_results
+ADD COLUMN is_finalized BOOLEAN DEFAULT FALSE;
+
 CREATE TRIGGER update_detection_results_updated_at
 BEFORE UPDATE ON detection_results
 FOR EACH ROW
